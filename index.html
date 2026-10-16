@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Apex Stimulus Portal</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+:root {
+--bg: #f1f5f9; --bg-card: #ffffff; --bg-elevated: #ffffff; --bg-input: #f8fafc;
+--border: #e2e8f0; --border-strong: #cbd5e1; --text: #334155; --text-dim: #64748b;
+--text-bright: #0f172a; --accent: #2e6cf6; --success: #1f7a3d; --danger: #b3402f;
+--radius: 12px; --radius-lg: 16px;
+}
+html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; overflow-x: hidden; }
+.hidden { display: none !important; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--success); color: #fff; padding: 12px 24px; border-radius: var(--radius); font-size: 14px; font-weight: 600; z-index: 1000; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.toast.error { background: var(--danger); }
+.login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.login-card { width: 100%; max-width: 400px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.05); }
+.login-card h1 { font-size: 22px; color: var(--text-bright); text-align: center; margin-bottom: 24px; font-weight: 800; }
+.login-card label { display: block; font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; margin-bottom: 6px; }
+.login-card input { width: 100%; padding: 14px; font-size: 16px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--bg-input); color: var(--text-bright); margin-bottom: 20px; }
+.primary-btn { width: 100%; padding: 14px; font-size: 16px; font-weight: 700; border-radius: var(--radius); border: none; background: var(--accent); color: #fff; cursor: pointer; text-transform: uppercase; text-align: center; }
+.app-screen { min-height: 100vh; display: flex; flex-direction: column; }
+.app-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; background: var(--bg-card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.header-left h1 { font-size: 18px; font-weight: 800; color: var(--text-bright); }
+.header-user { font-size: 13px; color: var(--text-dim); }
+.header-right { display: flex; gap: 8px; }
+.icon-btn { width: 40px; height: 40px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--bg-elevated); color: var(--text); font-size: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.tab-bar { display: flex; background: var(--bg-card); border-bottom: 1px solid var(--border); }
+.tab-btn { flex: 1; padding: 14px; background: transparent; border: none; color: var(--text-dim); font-size: 14px; font-weight: 600; cursor: pointer; }
+.tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); background: rgba(46,108,246,0.04); }
+.main-content { flex: 1; padding: 16px; max-width: 640px; width: 100%; margin: 0 auto; padding-bottom: 40px; }
+/* Token Area Styles */
+.token-container { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 16px; }
+.token-title { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; }
+.token-row { display: flex; flex-direction: column; gap: 8px; }
+.token-line { display: flex; align-items: center; justify-content: space-between; font-size: 14px; background: var(--bg-input); padding: 8px 12px; border-radius: var(--radius); }
+.token-dots { display: flex; gap: 6px; }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-strong); background: transparent; }
+.dot.filled { background: var(--accent); border-color: var(--accent); }
+.track-buttons { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
+.track-btn { padding: 10px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 99px; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.track-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.track-btn.disabled-guard { opacity: 0.4; background: #e2e8f0; cursor: not-allowed; }
+.exercise-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+.exercise-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.exercise-name { font-size: 18px; font-weight: 700; color: var(--text-bright); }
+.exercise-directive { font-size: 14px; color: #1e293b; background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid var(--accent); line-height: 1.4; }
+.exercise-target { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+.set-matrix { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.set-row { display: grid; grid-template-columns: 32px 1fr 1fr 90px; gap: 6px; align-items: center; padding: 6px 8px; border-radius: var(--radius); background: var(--bg-input); border: 1px solid var(--border); }
+.set-row input { width: 100%; padding: 8px 4px; font-size: 15px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-card); color: var(--text-bright); text-align: center; }
+.set-row select { width: 100%; padding: 7px 2px; font-size: 14px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-card); color: var(--text-bright); }
+.set-label { font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.note-container { margin-top: 10px; width: 100%; }
+.note-container textarea { width: 100%; padding: 10px; font-size: 13px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--bg-input); color: var(--text-bright); resize: none; font-family: inherit; }
+.exercise-card.shading-green { background: rgba(31,122,61,0.08) !important; border-color: var(--success) !important; }
+.exercise-card.shading-blue { background: rgba(46,108,246,0.08) !important; border-color: var(--accent) !important; }
+.exercise-card.shading-orange { background: rgba(249,115,22,0.10) !important; border-color: #f97316 !important; }
+.exercise-card.shading-yellow { background: rgba(234,179,8,0.12) !important; border-color: #eab308 !important; }
+.card-actions { display: flex; gap: 8px; margin-top: 14px; }
+.action-btn { flex: 1; padding: 12px; font-size: 13px; font-weight: 700; border-radius: var(--radius); cursor: pointer; border: 1px solid var(--border-strong); background: #f8fafc; color: var(--text); text-transform: uppercase; }
+.action-btn.primary { background: var(--success); border-color: var(--success); color: #fff; }
+.history-cues { background: #f8fafc; border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+.history-cue-title { font-weight: 700; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; font-size: 11px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); backdrop-filter: blur(2px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal-card { width: 100%; max-width: 440px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; position: relative; }
+.modal-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; background: transparent; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; }
+.timer-widget { position: fixed; bottom: 20px; right: 20px; width: 190px; background: #0f172a; color: #fff; border-radius: var(--radius-lg); padding: 12px; z-index: 500; border: 1px solid #334155; text-align: center; }
+.timer-display-digits { font-size: 32px; font-weight: 800; color: #38bdf8; }
+.timer-mini-btn { padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 6px; border: none; background: #334155; color: #fff; cursor: pointer; }
+.timer-input-duration { width: 54px; background: #1e293b; border: 1px solid #475569; color: #fff; border-radius: 4px; text-align: center; font-size: 12px; }
+
+.session-title { font-size: 13px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; margin: 4px 2px 12px; }
+.session-row { display: flex; gap: 8px; align-items: center; margin: -8px 0 16px; overflow-x: auto; }
+.session-label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; }
+.chip { padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 99px; color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.chip.active { background: var(--text-bright); border-color: var(--text-bright); color: #fff; }
+.deload-banner { background: #ecfeff; border: 1px solid #a5f3fc; color: #155e75; border-radius: var(--radius); padding: 12px 14px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+.badge-optional { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .5px; color: #475569; background: #e2e8f0; border-radius: 99px; padding: 2px 8px; vertical-align: middle; margin-left: 4px; }
+.banner-red { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.cue-box { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 12px 0; line-height: 1.4; }
+.result-line { font-size: 13px; color: var(--text); margin-top: 10px; }
+.info-card { background: #f8fafc; border-style: dashed; padding: 12px 18px; }
+.info-card .exercise-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.time-row { margin-top: 12px; }
+.time-row label { display: block; font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; margin-bottom: 6px; }
+.time-row input { width: 100%; padding: 14px; font-size: 20px; text-align: center; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--bg-card); color: var(--text-bright); }
+.scale-row { margin-bottom: 14px; }
+.scale-label { font-size: 13px; font-weight: 700; color: var(--text-bright); margin-bottom: 6px; }
+.scale-btns { display: flex; gap: 6px; }
+.scale-btn { flex: 1; padding: 10px 0; font-size: 15px; font-weight: 700; border-radius: 10px; border: 1px solid var(--border-strong); background: #f8fafc; color: var(--text); cursor: pointer; }
+.scale-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.exercise-card input:disabled, .exercise-card select:disabled, .exercise-card textarea:disabled { opacity: .7; }
+</style>
+</head>
+<body>
+<div id="toast" class="toast hidden"></div>
+<section id="loginScreen" class="login-screen">
+<div class="login-card">
+<h1>Athlete Tracker Portal</h1>
+<label for="userEmail">Portal Login Email ID</label>
+<input id="userEmail" type="email" placeholder="name@domain.com" autocomplete="username" autocapitalize="off" />
+<label for="userPassword">Access Pin Key</label>
+<input id="userPassword" type="password" placeholder="&bull;&bull;&bull;&bull;" autocomplete="current-password" />
+<button id="loginBtn" class="primary-btn">Log In</button>
+</div>
+</section>
+<section id="appScreen" class="app-screen hidden">
+<header class="app-header">
+<div class="header-left">
+<h1 id="appDisplayBrandingTitle">ASE Portal</h1>
+<div class="header-user">Athlete: <span id="headerAthleteName">&mdash;</span></div>
+</div>
+<div class="header-right">
+<button id="msgDrawerBtn" class="icon-btn" title="Messages">&#9993;</button>
+<button id="logoutBtn" class="icon-btn" title="Exit">&#9211;</button>
+</div>
+</header>
+<nav class="tab-bar">
+<button class="tab-btn active" id="tabBtnWorkout">Active Training</button>
+<button class="tab-btn" id="tabBtnHistory">Performance Log</button>
+</nav>
+<main id="viewWorkout" class="main-content">
+<div id="deloadBanner" class="deload-banner hidden"></div>
+<div id="tokenWrap" class="token-container hidden">
+<div class="token-title">Weekly Sessions Budget</div>
+<div id="tokenLedgerBox" class="token-row"></div>
+</div>
+<div class="track-buttons" id="trackButtonsContainer"></div>
+<div class="session-row hidden" id="sessionPicker"></div>
+<div id="exerciseContainer"></div>
+</main>
+<main id="viewHistory" class="main-content hidden">
+<div class="history-cues">
+<div class="history-cue-title">Performance Log (this visit)</div>
+<div id="historyLedgerList" style="display:flex; flex-direction:column; gap:10px; margin-top:8px;"></div>
+</div>
+</main>
+</section>
+<div id="timerWidget" class="timer-widget hidden">
+<div style="font-size: 10px; font-weight: 800; color: #94a3b8; display:flex; justify-content:space-between;">
+<span>REST CLOCK</span>
+<span id="timerCloseBtn" style="cursor:pointer;">&times;</span>
+</div>
+<div id="timerClockDisplay" class="timer-display-digits">02:00</div>
+<div style="display:flex; justify-content:center; gap:4px; margin:4px 0;">
+<button id="timerMinusBtn" class="timer-mini-btn">-30s</button>
+<input type="text" id="timerManualInput" class="timer-input-duration" value="02:00" />
+<button id="timerPlusBtn" class="timer-mini-btn">+30s</button>
+</div>
+<button id="timerPauseBtn" class="timer-mini-btn" style="background:#0284c7; width:100%; margin-top:4px;">PAUSE</button>
+</div>
+<div id="chatModal" class="modal-overlay hidden">
+<div class="modal-card">
+<button class="modal-close" id="closeChatModalBtn">&times;</button>
+<h2>Coach Channel Feed</h2>
+<div id="chatMessageThread" style="height:260px; overflow-y:auto; padding:12px; background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius); margin:12px 0; display:flex; flex-direction:column; gap:8px;"></div>
+<textarea id="chatInputText" rows="2" placeholder="Send a message to your coach..." style="width:100%; padding:10px; border-radius:var(--radius); resize:none; margin-bottom:12px; font-family:inherit;"></textarea>
+<button id="chatSendMsgBtn" class="primary-btn">Send Message</button>
+</div>
+</div>
+<div id="checkinModal" class="modal-overlay hidden">
+<div class="modal-card">
+<h2 style="font-size:18px;color:var(--text-bright);">Quick protocol check-in</h2>
+<p style="font-size:13px;color:var(--text-dim);margin:6px 0 16px;">That session landed below target. Take 20 seconds to check your sleep, food, stress and soreness. Your coach will see your answers.</p>
+<div id="checkinScales"></div>
+<textarea id="checkinNote" rows="2" placeholder="Anything else your coach should know?" style="width:100%; padding:10px; border-radius:var(--radius); resize:none; margin-bottom:12px; font-family:inherit; border:1px solid var(--border-strong);"></textarea>
+<div style="display:flex;gap:8px;"><button id="checkinSkipBtn" class="action-btn">Skip</button><button id="checkinSendBtn" class="action-btn primary">Send to Coach</button></div>
+</div>
+</div>
+<script>
+// PASTE YOUR WEB APP DEPLOYMENT URL HERE
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwSJPJd8tZRaFvIRytnPUDkIGHr23XXkReBjkmbvtLo_rNIirOICp8Do6U-MRKhERt_/exec";
+var userSession = null;
+var dash = null;
+var activeSelector = "";
+var activeSession = "";
+var loadedExercises = [];
+var completedTokensList = [];
+var weekInfo = null;
+var intervalTimerHandle = null;
+var timerTimeLeft = 120;
+var timerIsPaused = false;
+var localHistoryArray = [];
+var pendingFlagId = "";
+var CATEGORY_LABELS = { "Strength": "\u{1F3CB}️ Strength", "Functional": "⚡ Functional", "Running": "\u{1F3C3} Running" };
+
+document.addEventListener("DOMContentLoaded", function () { initListeners(); });
+
+function initListeners() {
+  document.getElementById("loginBtn").addEventListener("click", executeLoginHandshake);
+  ["userEmail", "userPassword"].forEach(function (id) { document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") executeLoginHandshake(); }); });
+  document.getElementById("logoutBtn").addEventListener("click", function () { location.reload(); });
+  document.getElementById("tabBtnWorkout").addEventListener("click", function () { switchMainNavigationPane("workout"); });
+  document.getElementById("tabBtnHistory").addEventListener("click", function () { switchMainNavigationPane("history"); });
+  document.getElementById("msgDrawerBtn").addEventListener("click", openCoachChatDrawer);
+  document.getElementById("closeChatModalBtn").addEventListener("click", function () { document.getElementById("chatModal").classList.add("hidden"); });
+  document.getElementById("chatSendMsgBtn").addEventListener("click", submitMessageTransactionText);
+  document.getElementById("checkinSkipBtn").addEventListener("click", function () { closeCheckin(); });
+  document.getElementById("checkinSendBtn").addEventListener("click", sendCheckin);
+  document.getElementById("timerManualInput").addEventListener("change", applyManualTimerDurationSet);
+  document.getElementById("timerCloseBtn").addEventListener("click", function () { stopRestTimer(); });
+  document.getElementById("timerPauseBtn").addEventListener("click", toggleIntervalTimerPauseState);
+  document.getElementById("timerMinusBtn").addEventListener("click", function () { adjustRestTimerValue(-30); });
+  document.getElementById("timerPlusBtn").addEventListener("click", function () { adjustRestTimerValue(30); });
+  buildCheckinScales();
+}
+
+function isFixed() { return !!(userSession && userSession.routingMode === "Fixed Calendar"); }
+
+// ---------- LOGIN ----------
+function executeLoginHandshake() {
+  var email = document.getElementById("userEmail").value.trim();
+  var pass = document.getElementById("userPassword").value.trim();
+  if (!email || !pass) { displaySystemNotice("Fill out all fields.", true); return; }
+  var btn = document.getElementById("loginBtn");
+  btn.disabled = true; btn.textContent = "Verifying...";
+  jsonpRequest({ action: "login", email: email, password: pass }, function (res) {
+    btn.disabled = false; btn.textContent = "Log In";
+    if (res && res.success) { userSession = res; bootstrapApplicationWorkspace(); }
+    else displaySystemNotice((res && res.error) || "Login rejected.", true);
+  });
+}
+
+function bootstrapApplicationWorkspace() {
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("appScreen").classList.remove("hidden");
+  document.getElementById("headerAthleteName").textContent = userSession.athleteName;
+  if (userSession.customHypePhrases && userSession.customHypePhrases.length > 0) {
+    var list = userSession.customHypePhrases;
+    displaySystemNotice(list[Math.floor(Math.random() * list.length)]);
+  }
+  fetchDashboard("", "");
+}
+
+// ---------- DASHBOARD ----------
+function fetchDashboard(selector, session) {
+  var box = document.getElementById("exerciseContainer");
+  box.innerHTML = "<div style='color:var(--text-dim); text-align:center; padding:20px;'>Syncing your training plan...</div>";
+  var req = { action: "getDashboard", athleteEmail: userSession.email };
+  if (selector) req.selector = selector;
+  if (session) req.session = session;
+  jsonpRequest(req, function (res) {
+    if (res && res.success) {
+      dash = res;
+      userSession.routingMode = res.routingMode || userSession.routingMode;
+      activeSelector = res.selector; activeSession = res.activeSession;
+      loadedExercises = res.exercises || [];
+      completedTokensList = res.completedTokens || [];
+      weekInfo = res.week || null;
+      renderSelectorButtons();
+      renderSessionPicker();
+      renderDeloadBanner();
+      renderWeeklyTokenBudgetLedger();
+      evaluateSafetyGuardrails();
+      renderExercisePrescriptionCards();
+    } else {
+      box.innerHTML = "<div style='color:var(--danger); text-align:center; padding:20px;'>" + esc((res && res.error) || "Connection failed.") + "</div>";
+    }
+  });
+}
+
+function renderSelectorButtons() {
+  var c = document.getElementById("trackButtonsContainer");
+  c.innerHTML = "";
+  (dash.selectors || []).forEach(function (s) {
+    var b = document.createElement("button");
+    b.className = "track-btn" + (s === activeSelector ? " active" : "");
+    b.textContent = s; b.dataset.sel = s;
+    b.addEventListener("click", function () { setSelector(s); });
+    c.appendChild(b);
+  });
+}
+function setSelector(s) { fetchDashboard(s, ""); }
+
+function renderSessionPicker() {
+  var c = document.getElementById("sessionPicker");
+  c.innerHTML = "";
+  var list = dash.sessions || [];
+  if (list.length <= 1) { c.classList.add("hidden"); return; }
+  c.classList.remove("hidden");
+  var lab = document.createElement("span"); lab.className = "session-label"; lab.textContent = "Session:"; c.appendChild(lab);
+  list.forEach(function (s) {
+    var b = document.createElement("button");
+    b.className = "chip" + (s === activeSession ? " active" : "");
+    b.textContent = s;
+    b.addEventListener("click", function () { if (s !== activeSession) fetchDashboard(activeSelector, s); });
+    c.appendChild(b);
+  });
+}
+
+function renderDeloadBanner() {
+  var el = document.getElementById("deloadBanner");
+  if (dash.deload && dash.deload.active) {
+    el.classList.remove("hidden");
+    el.textContent = "Deload week: lighter loads and fewer sets. Move well, leave energy in the tank. No progression is calculated this week.";
+  } else el.classList.add("hidden");
+}
+
+// ---------- WEEKLY LEDGER + GUARDS (Flexible athletes only) ----------
+function allotmentFor(cat) { return (weekInfo && weekInfo.allotments && weekInfo.allotments[cat] != null) ? weekInfo.allotments[cat] : 0; }
+function mmdd(offsetDays) { var d = new Date(); d.setDate(d.getDate() + offsetDays); return String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0"); }
+function sessionDaysThisWeek(cat) {
+  var seen = {};
+  completedTokensList.forEach(function (t) { if (t.track === cat && t.inWeek !== false) seen[t.date] = true; });
+  return seen;
+}
+function uniqueSessionDays(cat) { return Object.keys(sessionDaysThisWeek(cat)).length; }
+
+function renderWeeklyTokenBudgetLedger() {
+  var wrap = document.getElementById("tokenWrap");
+  var box = document.getElementById("tokenLedgerBox");
+  if (isFixed() || !weekInfo) { wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  var cats = ["Strength", "Functional", "Running"].filter(function (c) { return (dash.selectors || []).indexOf(c) !== -1; });
+  var al = weekInfo.allotments, summary = cats.map(function (c) { return al[c] + " " + c; }).join(" · ");
+  var html = '<div style="font-size:12px;font-weight:700;color:var(--accent);">Week ' + esc(weekInfo.number) + ' (' + (weekInfo.type === "odd" ? "Odd" : "Even") + ' week): ' + esc(summary) + '</div>';
+  cats.forEach(function (c) {
+    html += '<div class="token-line"><span>' + CATEGORY_LABELS[c] + ' (' + allotmentFor(c) + '/week)</span><div class="token-dots">' + generateDots(uniqueSessionDays(c), allotmentFor(c)) + '</div></div>';
+  });
+  box.innerHTML = html;
+}
+function generateDots(count, max) {
+  var html = "";
+  for (var i = 0; i < max; i++) html += '<div class="dot ' + (i < count ? 'filled' : '') + '"></div>';
+  return html;
+}
+
+function btnFor(cat) { return Array.from(document.querySelectorAll(".track-btn")).find(function (b) { return b.dataset.sel === cat; }); }
+function evaluateSafetyGuardrails() {
+  document.querySelectorAll(".track-btn").forEach(function (b) { b.classList.remove("disabled-guard"); delete b.dataset.guard; });
+  if (isFixed() || !weekInfo) return;
+  var today = mmdd(0), yStr = mmdd(-1);
+  ["Strength", "Functional", "Running"].forEach(function (c) {
+    var b = btnFor(c); if (!b) return;
+    var days = sessionDaysThisWeek(c);
+    if (Object.keys(days).length >= allotmentFor(c) && !days[today]) { b.classList.add("disabled-guard"); b.dataset.guard = "full"; }
+  });
+  var yTracks = {};
+  completedTokensList.forEach(function (t) { if (t.date === yStr) yTracks[t.track] = true; });
+  function recoveryBlock(c) { var b = btnFor(c); if (b && !b.dataset.guard) { b.classList.add("disabled-guard"); b.dataset.guard = "recovery"; } }
+  if (yTracks["Strength"]) { recoveryBlock("Strength"); recoveryBlock("Functional"); }
+  if (yTracks["Functional"]) recoveryBlock("Functional");
+}
+
+// ---------- CARDS ----------
+function targetHeaderFor(ex) {
+  if (ex.kind === "time") return "Target window: " + ex.minReps + "–" + ex.maxReps + " min";
+  if (ex.kind === "reps") return ex.sets + " set(s) · target " + ex.minReps + (ex.maxReps !== ex.minReps ? "–" + ex.maxReps : "") + " (reps or seconds)";
+  return ex.sets + " sets of " + ex.minReps + (ex.maxReps !== ex.minReps ? "–" + ex.maxReps : "") + (ex.restSeconds ? " · rest " + formatClockOutput(ex.restSeconds) : "");
+}
+function gradeOptions() { return '<option value="">Grade</option>' + ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"].map(function (g) { return "<option>" + g + "</option>"; }).join(""); }
+
+function renderExercisePrescriptionCards() {
+  var box = document.getElementById("exerciseContainer");
+  box.innerHTML = "";
+  var activeBtn = btnFor(activeSelector);
+  if (activeBtn && activeBtn.classList.contains("disabled-guard")) {
+    var full = activeBtn.dataset.guard === "full";
+    var msgTxt = full
+      ? "✅ Weekly allotment complete: you've used all " + allotmentFor(activeSelector) + " " + esc(activeSelector) + " session(s) this week. Your tokens reset on Monday."
+      : "\u{1F6D1} Recovery Protocol Active: your coach's safety guardrails prevent training this modality on back-to-back days. Pick another option or rest today.";
+    box.innerHTML = "<div style='color:" + (full ? "#166534" : "var(--danger)") + "; background:" + (full ? "#f0fdf4" : "#fef2f2") + "; border:1px solid " + (full ? "#bbf7d0" : "#fee2e2") + "; border-radius:12px; text-align:center; padding:24px; font-weight:600;'>" + msgTxt + "</div>";
+    return;
+  }
+  if (loadedExercises.length === 0) {
+    box.innerHTML = "<div style='color:var(--text-dim); text-align:center; padding:20px;'>No exercises are scheduled here yet.</div>";
+    return;
+  }
+  var head = document.createElement("div");
+  head.className = "session-title";
+  head.textContent = (activeSelector || "") + (activeSession ? " — " + activeSession : "");
+  box.appendChild(head);
+  loadedExercises.forEach(function (ex, idx) { box.appendChild(buildCard(ex, idx)); });
+}
+
+function buildCard(ex, idx) {
+  var card = document.createElement("div");
+  card.className = "exercise-card" + (ex.kind === "info" ? " info-card" : "");
+  card.id = "card_ex_" + idx;
+  var inner = "";
+  var badge = ex.optional ? '<span class="badge-optional">OPTIONAL</span>' : "";
+  var targetLoad = "";
+  if (ex.kind !== "info" && ex.kind !== "time" && ex.isNumeric) targetLoad = esc(ex.preAllocatedLoad) + " <span style='font-size:12px;font-weight:400;color:var(--text-dim);'>lbs</span>";
+  inner += '<div class="exercise-head"><div><div class="exercise-name">' + esc(ex.exerciseName) + ' ' + badge + '</div>' +
+    (ex.kind === "info" ? "" : '<div class="exercise-target">' + esc(targetHeaderFor(ex)) + '</div>') + '</div>' +
+    '<div style="font-size:18px; font-weight:800; color:var(--accent); text-align:right;">' + targetLoad + '</div></div>';
+  if (ex.kind === "info") { card.innerHTML = inner; return card; }
+  if (ex.contactCoach) inner += '<div class="banner-red">Two tough sessions in a row on this exercise. Please contact your coach before your next session.</div>';
+  if (ex.lastCue) inner += '<div class="cue-box"><strong>Coach cue from last time:</strong> ' + esc(ex.lastCue) + '</div>';
+  var historyHtml = "<div style='color:var(--text-dim); font-style:italic;'>No prior efforts yet.</div>";
+  if (ex.history && ex.history.length > 0) {
+    historyHtml = ex.history.map(function (h) {
+      var p = h.payload || {}, e = p.exercises || {};
+      var setsStr = (e.sets && e.sets.length) ? e.sets.map(function (s) { return (s.load !== "" && s.load != null ? s.load + "x" : "") + s.reps + s.grade; }).join(" ") : (e.timeMinutes != null ? e.timeMinutes + " min" : "N/A");
+      var noteStr = p.summary_notes ? "<div style='color:var(--text-bright); margin-left:10px; font-size:12px;'>↳ Note: \"" + esc(p.summary_notes) + "\"</div>" : "";
+      return "<div>• <strong>" + esc(h.timestamp) + ":</strong> " + esc(setsStr) + "</div>" + noteStr;
+    }).join("");
+  }
+  inner += '<div class="history-cues"><div class="history-cue-title">Last 2 efforts</div>' + historyHtml + '</div>';
+
+  if (ex.kind === "time") {
+    inner += '<div class="time-row"><label>Finish time (mm:ss)</label><input type="text" inputmode="numeric" placeholder="e.g. 9:30" id="time_' + idx + '" /></div>';
+  } else {
+    var needLoad = ex.isNumeric;
+    var rows = "";
+    for (var s = 1; s <= ex.sets; s++) {
+      rows += '<div class="set-row" id="row_' + idx + '_' + s + '"><div class="set-label">S' + s + '</div>' +
+        '<div><input type="text" placeholder="' + (needLoad ? "load" : "load (opt)") + '" id="load_' + idx + '_' + s + '" data-idx="' + idx + '" value="' + (ex.isNumeric ? esc(ex.preAllocatedLoad) : "") + '" /></div>' +
+        '<div><input type="number" inputmode="numeric" placeholder="' + (ex.kind === "reps" ? "reps/sec" : "reps") + '" id="reps_' + idx + '_' + s + '" data-idx="' + idx + '" /></div>' +
+        '<div><select id="grade_' + idx + '_' + s + '" data-idx="' + idx + '" data-set="' + s + '">' + gradeOptions() + '</select></div></div>';
+    }
+    inner += '<div class="set-matrix">' + rows + '</div>';
+  }
+  var notePh = ex.kind === "time" ? "What did you scale this time? (e.g. banded pull-ups, lighter DBs)" : "Notes (equipment, how it felt, what you scaled)...";
+  inner += '<div class="note-container"><textarea id="notes_' + idx + '" rows="1" placeholder="' + esc(notePh) + '"></textarea></div>';
+  inner += '<div id="result_' + idx + '"></div>';
+  inner += '<div class="card-actions">' + (ex.kind !== "time" && ex.restSeconds > 0 ? '<button class="action-btn" data-rest="' + idx + '">⏱ Rest Timer</button>' : "") +
+    '<button class="action-btn primary" id="submit_' + idx + '" data-submit="' + idx + '">' + (ex.optional ? "Log Optional Work" : "Submit Session Log") + '</button></div>';
+  card.innerHTML = inner;
+
+  // wire events (no inline handlers)
+  card.querySelectorAll("input[data-idx]").forEach(function (el) { el.addEventListener("input", function () { evaluateAutoRegShading(idx); }); });
+  card.querySelectorAll("select[data-idx]").forEach(function (el) { el.addEventListener("change", function () { evaluateAutoRegShading(idx); maybeAutoRest(idx, parseInt(el.dataset.set, 10)); }); });
+  var rb = card.querySelector("[data-rest]"); if (rb) rb.addEventListener("click", function () { startRestTimer(ex.restSeconds || 120); });
+  card.querySelector("[data-submit]").addEventListener("click", function () { commitPerformanceRowData(idx); });
+  return card;
+}
+
+function maybeAutoRest(idx, setNum) {
+  var ex = loadedExercises[idx];
+  if (!ex || ex.kind === "time" || !(ex.restSeconds > 0) || setNum >= ex.sets) return;
+  var r = document.getElementById("reps_" + idx + "_" + setNum).value, g = document.getElementById("grade_" + idx + "_" + setNum).value;
+  var l = document.getElementById("load_" + idx + "_" + setNum).value;
+  if (!r || !g || (ex.isNumeric && !l)) return;
+  var row = document.getElementById("row_" + idx + "_" + setNum);
+  if (row.dataset.rested) return;
+  row.dataset.rested = "1";
+  startRestTimer(ex.restSeconds);
+}
+
+function evaluateAutoRegShading(exIdx) {
+  var card = document.getElementById("card_ex_" + exIdx), ex = loadedExercises[exIdx];
+  if (!card || ex.kind !== "lift") return;
+  var allEntered = true, atMin = 0, atMax = 0, below = 0, strong = ["A+", "A", "A-", "B+", "B", "B-", "C+"];
+  for (var s = 1; s <= ex.sets; s++) {
+    var rVal = document.getElementById("reps_" + exIdx + "_" + s).value, gVal = document.getElementById("grade_" + exIdx + "_" + s).value;
+    if (!rVal || !gVal) { allEntered = false; break; }
+    var reps = parseInt(rVal, 10);
+    if (strong.indexOf(gVal) === -1 || reps < ex.minReps) below++;
+    else if (reps >= ex.maxReps) atMax++;
+    else if (reps === ex.minReps) atMin++;
+  }
+  card.classList.remove("shading-green", "shading-blue", "shading-orange", "shading-yellow");
+  if (!allEntered) return;
+  if (below > 0) card.classList.add("shading-yellow");
+  else if (atMax === ex.sets) card.classList.add("shading-green");
+  else if (atMin === ex.sets) card.classList.add("shading-orange");
+  else card.classList.add("shading-blue");
+}
+
+// ---------- SUBMIT ----------
+function parseTimeToMinutes(txt) {
+  var t = String(txt).trim();
+  if (!t) return NaN;
+  if (t.indexOf(":") !== -1) { var p = t.split(":"); var m = parseInt(p[0], 10), s = parseInt(p[1], 10); if (isNaN(m) || isNaN(s) || s < 0 || s > 59) return NaN; return Math.round((m + s / 60) * 100) / 100; }
+  var n = parseFloat(t); return isNaN(n) ? NaN : n;
+}
+
+function commitPerformanceRowData(exIdx) {
+  var ex = loadedExercises[exIdx], setsData = [], timeMinutes;
+  var summaryText = document.getElementById("notes_" + exIdx).value.trim();
+  if (ex.kind === "time") {
+    timeMinutes = parseTimeToMinutes(document.getElementById("time_" + exIdx).value);
+    if (isNaN(timeMinutes)) { displaySystemNotice("Enter your finish time as mm:ss.", true); return; }
+  } else {
+    for (var s = 1; s <= ex.sets; s++) {
+      var l = document.getElementById("load_" + exIdx + "_" + s).value.trim(), r = document.getElementById("reps_" + exIdx + "_" + s).value, g = document.getElementById("grade_" + exIdx + "_" + s).value;
+      if (!r || !g || (ex.isNumeric && !l)) { displaySystemNotice("Complete every set (reps and grade" + (ex.isNumeric ? ", and load" : "") + ").", true); return; }
+      setsData.push({ set: s, load: (l === "" ? "" : (isNaN(l) ? l : parseFloat(l))), reps: parseInt(r, 10), grade: g });
+    }
+  }
+  var exPayload = { name: ex.exerciseName, sets: setsData };
+  if (ex.kind === "time") exPayload.timeMinutes = timeMinutes;
+  var payload = { summary_notes: summaryText, exercises: exPayload };
+  var btn = document.getElementById("submit_" + exIdx);
+  btn.disabled = true; btn.textContent = "Logging...";
+  var dateStr = mmdd(0);
+  jsonpRequest({ action: "submitWorkout", athleteEmail: userSession.email, targetTrack: ex.targetTrack, category: ex.category, exerciseName: ex.exerciseName, performancePayloadJSON: JSON.stringify(payload) }, function (res) {
+    if (res && res.success) {
+      localHistoryArray.unshift({ date: dateStr, name: ex.exerciseName, sets: setsData, time: timeMinutes });
+      renderLocalHistoryLedgerPane();
+      btn.textContent = "Saved ✓"; btn.style.background = "var(--border-strong)"; btn.style.color = "var(--text)";
+      card_lock(exIdx);
+      showResult(exIdx, res);
+      if (!ex.optional) completedTokensList.push({ track: ex.category, exercise: ex.exerciseName, date: dateStr, inWeek: true });
+      renderWeeklyTokenBudgetLedger();
+      var prevSel = activeSelector; evaluateSafetyGuardrails();
+      if (btnFor(prevSel)) btnFor(prevSel).classList.remove("disabled-guard");   // keep today's workout open
+      if (res.needsCheckin && res.flagId) openCheckin(res.flagId);
+      displaySystemNotice("Session log locked successfully.");
+    } else {
+      displaySystemNotice((res && res.error) || "Submission failed.", true);
+      btn.disabled = false; btn.textContent = ex.optional ? "Log Optional Work" : "Submit Session Log";
+    }
+  });
+}
+function card_lock(idx) { document.querySelectorAll("#card_ex_" + idx + " input, #card_ex_" + idx + " select, #card_ex_" + idx + " textarea").forEach(function (el) { el.disabled = true; }); }
+
+function showResult(idx, res) {
+  var el = document.getElementById("result_" + idx), html = "";
+  if (res.cue) html += '<div class="cue-box"><strong>Coach cue:</strong> ' + esc(res.cue) + '</div>';
+  else if (res.message) html += '<div class="result-line">' + esc(res.message) + '</div>';
+  if (res.newLoad != null) html += '<div class="result-line"><strong>Next load: ' + esc(res.newLoad) + '</strong></div>';
+  if (res.contactCoach) html += '<div class="banner-red">Two tough sessions in a row. Please contact your coach before your next session.</div>';
+  el.innerHTML = html;
+}
+
+// ---------- PROTOCOL CHECK-IN ----------
+var checkinAnswers = {};
+var CHECKIN_Q = [["sleep", "Sleep (1 poor – 5 great)"], ["eating", "Eating and hydration"], ["stress", "Stress / mental state"], ["soreness", "Soreness (1 very sore – 5 fresh)"]];
+function buildCheckinScales() {
+  var c = document.getElementById("checkinScales");
+  c.innerHTML = "";
+  CHECKIN_Q.forEach(function (q) {
+    var row = document.createElement("div"); row.className = "scale-row";
+    var lab = document.createElement("div"); lab.className = "scale-label"; lab.textContent = q[1]; row.appendChild(lab);
+    var btns = document.createElement("div"); btns.className = "scale-btns";
+    for (var n = 1; n <= 5; n++) {
+      (function (n) {
+        var b = document.createElement("button"); b.className = "scale-btn"; b.textContent = n;
+        b.addEventListener("click", function () { checkinAnswers[q[0]] = n; Array.from(btns.children).forEach(function (x) { x.classList.toggle("active", x === b); }); });
+        btns.appendChild(b);
+      })(n);
+    }
+    row.appendChild(btns); c.appendChild(row);
+  });
+}
+function openCheckin(flagId) {
+  pendingFlagId = flagId; checkinAnswers = {};
+  document.getElementById("checkinNote").value = "";
+  document.querySelectorAll(".scale-btn").forEach(function (b) { b.classList.remove("active"); });
+  document.getElementById("checkinModal").classList.remove("hidden");
+}
+function closeCheckin() { document.getElementById("checkinModal").classList.add("hidden"); pendingFlagId = ""; }
+function sendCheckin() {
+  if (!pendingFlagId) { closeCheckin(); return; }
+  var answers = { sleep: checkinAnswers.sleep || null, eating: checkinAnswers.eating || null, stress: checkinAnswers.stress || null, soreness: checkinAnswers.soreness || null, note: document.getElementById("checkinNote").value.trim() };
+  var btn = document.getElementById("checkinSendBtn"); btn.disabled = true;
+  jsonpRequest({ action: "submitCheckin", athleteEmail: userSession.email, flagId: pendingFlagId, answersJSON: JSON.stringify(answers) }, function (res) {
+    btn.disabled = false;
+    if (res && res.success) { displaySystemNotice("Thanks. Your coach has your check-in."); closeCheckin(); }
+    else displaySystemNotice((res && res.error) || "Could not send. You can message your coach instead.", true);
+  });
+}
+
+// ---------- HISTORY / MESSAGES ----------
+function renderLocalHistoryLedgerPane() {
+  var container = document.getElementById("historyLedgerList");
+  if (!container) return;
+  if (localHistoryArray.length === 0) { container.innerHTML = "<div>No logged sessions yet this visit.</div>"; return; }
+  container.innerHTML = localHistoryArray.map(function (h) {
+    var metrics = h.time != null && !isNaN(h.time) ? (h.time + " min") : h.sets.map(function (s) { return (s.load !== "" ? s.load + "x" : "") + s.reps + s.grade; }).join(" ");
+    return "<div style='background:#f8fafc;padding:12px;border:1px solid var(--border);border-radius:var(--radius);'><strong>" + esc(h.date) + " - " + esc(h.name) + ":</strong> <span style='color:var(--accent);font-weight:bold;margin-left:8px;'>" + esc(metrics) + "</span></div>";
+  }).join("");
+}
+function openCoachChatDrawer() { document.getElementById("chatModal").classList.remove("hidden"); syncMessageHistoryFeed(); }
+function syncMessageHistoryFeed() {
+  var box = document.getElementById("chatMessageThread");
+  box.innerHTML = "<div style='color:var(--text-dim); text-align:center;'>Syncing...</div>";
+  jsonpRequest({ action: "fetchMessages", userEmail: userSession.email }, function (res) {
+    if (res && res.success) {
+      box.innerHTML = "";
+      if (res.messages.length === 0) { box.innerHTML = "<div style='color:var(--text-dim); text-align:center; padding-top:20px;'>No notes on record.</div>"; return; }
+      res.messages.forEach(function (m) {
+        var r = document.createElement("div");
+        r.style.padding = "6px 10px"; r.style.borderRadius = "8px"; r.style.maxWidth = "80%";
+        if (m.direction === "out") { r.style.marginLeft = "auto"; r.style.background = "var(--accent)"; r.style.color = "#fff"; }
+        else { r.style.marginRight = "auto"; r.style.background = "var(--border-strong)"; r.style.color = "var(--text-bright)"; }
+        r.textContent = m.text; box.appendChild(r);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+  });
+}
+function submitMessageTransactionText() {
+  var txt = document.getElementById("chatInputText").value.trim();
+  if (!txt) return;
+  document.getElementById("chatSendMsgBtn").disabled = true;
+  jsonpRequest({ action: "transmitMessage", sender: userSession.email, receiver: userSession.coachEmail, messageText: txt }, function (res) {
+    document.getElementById("chatSendMsgBtn").disabled = false;
+    if (res && res.success) { document.getElementById("chatInputText").value = ""; syncMessageHistoryFeed(); }
+  });
+}
+
+// ---------- REST TIMER ----------
+function beep(freq, ms) {
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    var ctx = new AC(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = freq; g.gain.value = 0.08; o.connect(g); g.connect(ctx.destination); o.start();
+    setTimeout(function () { o.stop(); ctx.close(); }, ms);
+  } catch (e) {}
+}
+function startRestTimer(secs) {
+  timerTimeLeft = secs > 0 ? secs : 120; timerIsPaused = false;
+  document.getElementById("timerPauseBtn").textContent = "PAUSE";
+  document.getElementById("timerWidget").classList.remove("hidden");
+  if (intervalTimerHandle) clearInterval(intervalTimerHandle);
+  updateTimerWidgetUIElements();
+  intervalTimerHandle = setInterval(executeTimerTickLoop, 1000);
+}
+function stopRestTimer() { if (intervalTimerHandle) clearInterval(intervalTimerHandle); document.getElementById("timerWidget").classList.add("hidden"); }
+function adjustRestTimerValue(secs) { timerTimeLeft = Math.max(0, timerTimeLeft + secs); updateTimerWidgetUIElements(); }
+function applyManualTimerDurationSet() {
+  var val = document.getElementById("timerManualInput").value.split(":");
+  if (val.length === 2) { var computed = parseInt(val[0], 10) * 60 + parseInt(val[1], 10); if (!isNaN(computed)) { timerTimeLeft = computed; updateTimerWidgetUIElements(); } }
+}
+function executeTimerTickLoop() {
+  if (timerIsPaused) return;
+  if (timerTimeLeft > 0) {
+    timerTimeLeft--; updateTimerWidgetUIElements();
+    if (timerTimeLeft > 0 && timerTimeLeft <= 3) beep(660, 120);
+  } else {
+    beep(990, 400); try { if (navigator.vibrate) navigator.vibrate(300); } catch (e) {}
+    stopRestTimer();
+  }
+}
+function updateTimerWidgetUIElements() { document.getElementById("timerClockDisplay").textContent = formatClockOutput(timerTimeLeft); document.getElementById("timerManualInput").value = formatClockOutput(timerTimeLeft); }
+function toggleIntervalTimerPauseState() { timerIsPaused = !timerIsPaused; document.getElementById("timerPauseBtn").textContent = timerIsPaused ? "RESUME" : "PAUSE"; }
+
+// ---------- UTIL ----------
+function switchMainNavigationPane(tPane) {
+  document.getElementById("tabBtnWorkout").classList.toggle("active", tPane === "workout");
+  document.getElementById("tabBtnHistory").classList.toggle("active", tPane === "history");
+  document.getElementById("viewWorkout").classList.toggle("hidden", tPane !== "workout");
+  document.getElementById("viewHistory").classList.toggle("hidden", tPane !== "history");
+  if (tPane === "history") renderLocalHistoryLedgerPane();
+}
+function esc(v) { return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+function formatClockOutput(s) { var mins = Math.floor(s / 60), secs = s % 60; return String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0"); }
+function jsonpRequest(p, cbFn) {
+  var cbName = 'ase_cb_' + Math.random().toString(36).slice(2, 10);
+  var finished = false, timer = null;
+  function cleanup() { clearTimeout(timer); try { delete window[cbName]; } catch (e) { window[cbName] = undefined; } var scr = document.getElementById(cbName); if (scr && scr.parentNode) scr.parentNode.removeChild(scr); }
+  function finish(d) { if (finished) return; finished = true; cleanup(); cbFn(d); }
+  window[cbName] = function (d) { finish(d); };
+  var q = new URLSearchParams(p); q.append("callback", cbName);
+  var script = document.createElement("script"); script.id = cbName;
+  script.onerror = function () { finish({ success: false, error: "Could not reach the server. Check the Web App URL and that access is set to Anyone." }); };
+  timer = setTimeout(function () { finish({ success: false, error: "Server timed out. Please try again." }); }, 20000);
+  script.src = APPS_SCRIPT_URL + (APPS_SCRIPT_URL.indexOf("?") === -1 ? "?" : "&") + q.toString();
+  document.body.appendChild(script);
+}
+function displaySystemNotice(m, isErr) { var t = document.getElementById("toast"); t.textContent = m; t.className = "toast"; if (isErr) t.classList.add("error"); t.classList.remove("hidden"); setTimeout(function () { t.classList.add("hidden"); }, 3500); }
+
+</script>
+</body>
+</html>
