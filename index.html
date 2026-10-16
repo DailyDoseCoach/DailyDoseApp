@@ -152,6 +152,7 @@ let userSession = null;
 let activeTrack = "Strength Day";
 let loadedExercises = [];
 let completedTokensList = [];
+let weekInfo = null;
 let intervalTimerHandle = null;
 let timerTimeLeft = 120;
 let timerIsPaused = false;
@@ -225,6 +226,7 @@ jsonpRequest({ action: "getDashboard", athleteEmail: userSession.email, targetTr
 if (res && res.success) {
 loadedExercises = res.exercises || [];
 completedTokensList = res.completedTokens || [];
+weekInfo = res.week || null;
 renderWeeklyTokenBudgetLedger();
 evaluateSafetyGuardrails();
 renderExercisePrescriptionCards();
@@ -233,21 +235,27 @@ box.innerHTML = "<div style='color:var(--danger); text-align:center; padding:20p
 }
 });
 }
-function uniqueSessionDays(track) {
+var TRACK_BTN_IDS = { "Strength Day": "btn_track_Strength", "Functional": "btn_track_Functional", "Running Day": "btn_track_Running" };
+function allotmentFor(track) { return (weekInfo && weekInfo.allotments && weekInfo.allotments[track] != null) ? weekInfo.allotments[track] : 0; }
+function mmdd(offsetDays) { var d = new Date(); d.setDate(d.getDate() + offsetDays); return String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0"); }
+function sessionDaysThisWeek(track) {
   var seen = {};
-  completedTokensList.forEach(function (t) { if (t.track === track) seen[t.date] = true; });
-  return Object.keys(seen).length;
+  completedTokensList.forEach(function (t) { if (t.track === track && t.inWeek !== false) seen[t.date] = true; });
+  return seen;
 }
+function uniqueSessionDays(track) { return Object.keys(sessionDaysThisWeek(track)).length; }
 function renderWeeklyTokenBudgetLedger() {
 const box = document.getElementById("tokenLedgerBox");
-// One token per training DAY per track (not per exercise)
-const strengthCount = uniqueSessionDays("Strength Day");
-const functionalCount = uniqueSessionDays("Functional");
-const runCount = uniqueSessionDays("Running Day");
-box.innerHTML =
-  '<div class="token-line"><span>\u{1F3CB}\uFE0F Strength Day Tokens (Max 3/week)</span><div class="token-dots">' + generateDots(strengthCount, 3) + '</div></div>' +
-  '<div class="token-line"><span>\u26A1 Functional Workout Tokens</span><div class="token-dots">' + generateDots(functionalCount, 2) + '</div></div>' +
-  '<div class="token-line"><span>\u{1F3C3} Running Target Day Tokens</span><div class="token-dots">' + generateDots(runCount, 2) + '</div></div>';
+var head = "";
+if (weekInfo) {
+  var al = weekInfo.allotments;
+  head = '<div style="font-size:12px;font-weight:700;color:var(--accent);">Week ' + esc(weekInfo.number) + ' (' + (weekInfo.type === "odd" ? "Odd" : "Even") + ' week): ' +
+    al["Strength Day"] + ' Strength \u00B7 ' + al["Functional"] + ' Functional \u00B7 ' + al["Running Day"] + ' Running</div>';
+}
+box.innerHTML = head +
+  '<div class="token-line"><span>\u{1F3CB}\uFE0F Strength Day Tokens (' + allotmentFor("Strength Day") + '/week)</span><div class="token-dots">' + generateDots(uniqueSessionDays("Strength Day"), allotmentFor("Strength Day")) + '</div></div>' +
+  '<div class="token-line"><span>\u26A1 Functional Workout Tokens (' + allotmentFor("Functional") + '/week)</span><div class="token-dots">' + generateDots(uniqueSessionDays("Functional"), allotmentFor("Functional")) + '</div></div>' +
+  '<div class="token-line"><span>\u{1F3C3} Running Target Day Tokens (' + allotmentFor("Running Day") + '/week)</span><div class="token-dots">' + generateDots(uniqueSessionDays("Running Day"), allotmentFor("Running Day")) + '</div></div>';
 }
 function generateDots(count, max) {
 let html = "";
@@ -257,20 +265,26 @@ html += `<div class="dot ${i < count ? 'filled' : ''}"></div>`;
 return html;
 }
 function evaluateSafetyGuardrails() {
-document.querySelectorAll(".track-btn").forEach(function (b) { b.classList.remove("disabled-guard"); });
-if (completedTokensList.length === 0) return;
-// Only block back-to-back DAYS: look at what was trained yesterday (training twice today on one track is fine)
-var y = new Date(); y.setDate(y.getDate() - 1);
-var yStr = String(y.getMonth() + 1).padStart(2, "0") + "/" + String(y.getDate()).padStart(2, "0");
+Object.keys(TRACK_BTN_IDS).forEach(function (t) {
+  var b = document.getElementById(TRACK_BTN_IDS[t]);
+  if (b) { b.classList.remove("disabled-guard"); delete b.dataset.guard; }
+});
+var today = mmdd(0), yStr = mmdd(-1);
+// 1) Weekly allotment: a track is used up once its sessions-this-week reach the plan (days already logged today stay open so the workout can be finished)
+if (weekInfo) {
+  Object.keys(TRACK_BTN_IDS).forEach(function (t) {
+    var b = document.getElementById(TRACK_BTN_IDS[t]);
+    if (!b) return;
+    var days = sessionDaysThisWeek(t);
+    if (Object.keys(days).length >= allotmentFor(t) && !days[today]) { b.classList.add("disabled-guard"); b.dataset.guard = "full"; }
+  });
+}
+// 2) Recovery: no back-to-back days (Strength blocks Strength + Functional; Functional blocks Functional)
 var yTracks = {};
 completedTokensList.forEach(function (t) { if (t.date === yStr) yTracks[t.track] = true; });
-var sBtn = document.getElementById("btn_track_Strength");
-var fBtn = document.getElementById("btn_track_Functional");
-if (yTracks["Strength Day"]) {
-  if (sBtn) sBtn.classList.add("disabled-guard");
-  if (fBtn) fBtn.classList.add("disabled-guard");
-}
-if (yTracks["Functional"]) { if (fBtn) fBtn.classList.add("disabled-guard"); }
+function recoveryBlock(id) { var b = document.getElementById(id); if (b && !b.dataset.guard) { b.classList.add("disabled-guard"); b.dataset.guard = "recovery"; } }
+if (yTracks["Strength Day"]) { recoveryBlock("btn_track_Strength"); recoveryBlock("btn_track_Functional"); }
+if (yTracks["Functional"]) { recoveryBlock("btn_track_Functional"); }
 }
 function renderExercisePrescriptionCards() {
 var box = document.getElementById("exerciseContainer");
@@ -278,7 +292,11 @@ box.innerHTML = "";
 // If active track is flagged as blocked by structural safety loops, show warning overlay
 const activeBtn = Array.from(document.querySelectorAll(".track-btn")).find(b => b.classList.contains("active"));
 if (activeBtn && activeBtn.classList.contains("disabled-guard")) {
-box.innerHTML = "<div style='color:var(--danger); background:#fef2f2; border:1px solid #fee2e2; border-radius:12px; text-align:center; padding:24px; font-weight:600;'>\u{1F6D1} Recovery Protocol Active: Coach safety guardrails prevent training this modality on back-to-back days. Please select another modality or rest today.</div>";
+var full = activeBtn.dataset.guard === "full";
+var msgTxt = full
+  ? "\u2705 Weekly allotment complete: you've used all " + allotmentFor(activeTrack) + " " + esc(activeTrack) + " session(s) for this week. Your tokens reset on Monday."
+  : "\u{1F6D1} Recovery Protocol Active: Coach safety guardrails prevent training this modality on back-to-back days. Please select another modality or rest today.";
+box.innerHTML = "<div style='color:" + (full ? "#166534" : "var(--danger)") + "; background:" + (full ? "#f0fdf4" : "#fef2f2") + "; border:1px solid " + (full ? "#bbf7d0" : "#fee2e2") + "; border-radius:12px; text-align:center; padding:24px; font-weight:600;'>" + msgTxt + "</div>";
 return;
 }
 if (loadedExercises.length === 0) {
@@ -305,7 +323,7 @@ return "<div>• <strong>" + h.timestamp + ":</strong> " + setsStr + "</div>" + 
 }
 var matrixRows = "";
 // Strict Condition Lookups fallback: if rep constraints are unexpected strings, pass text straight to UI header
-var targetHeader = `3 sets of ${ex.minReps}-${ex.maxReps}`;
+var targetHeader = `3 sets of ex.minReps-{ex.maxReps}`;
 if (isNaN(ex.minReps) || isNaN(ex.maxReps)) {
 targetHeader = `Protocol Target Range: ${ex.minReps || 'N/A'}`;
 }
@@ -335,7 +353,7 @@ ${directiveHtml}
 <div class="note-container"><textarea id="notes_${idx}" rows="1" placeholder="Add custom execution notes or equipment tracking (e.g. 16lb ball)..."></textarea></div>
 <div class="card-actions">
 <button class="action-btn" onclick="launchRestTimerClockContainer()">⏱ Rest Timer</button>
-<button class="action-btn primary" id="submit_${idx}" onclick="commitPerformanceRowData(${idx})">Submit Session Log</button>
+<button class="action-btn primary" id="submit_idx"onclick="commitPerformanceRowData({idx})">Submit Session Log</button>
 </div>
 `;
 box.appendChild(card);
@@ -394,7 +412,7 @@ btn.textContent = "Saved ✓";
 btn.style.background = "var(--border-strong)";
 btn.style.color = "var(--text)";
 // Instantly sync token counts without forcing full page reload
-completedTokensList.push({ track: activeTrack, exercise: targetEx.exerciseName, date: dateStr });
+completedTokensList.push({ track: activeTrack, exercise: targetEx.exerciseName, date: dateStr, inWeek: true });
 renderWeeklyTokenBudgetLedger();
 evaluateSafetyGuardrails();
 } else {
@@ -468,3 +486,5 @@ function displaySystemNotice(m, isErr) { var t = document.getElementById("toast"
 </script>
 </body>
 </html>
+
+
