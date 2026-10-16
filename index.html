@@ -115,6 +115,15 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 .eq-field { margin-bottom: 12px; }
 .eq-field label { display: block; font-size: 11px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
 .eq-field input, .eq-field select { width: 100%; padding: 10px; font-size: 15px; border-radius: 8px; border: 1px solid var(--border-strong); background: #fff; color: var(--text-bright); }
+.eq-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.eq-chip { display: inline-flex; align-items: center; border: 1px solid var(--border-strong); border-radius: 99px; background: #fff; overflow: hidden; }
+.eq-chip.active { background: var(--text-bright); border-color: var(--text-bright); }
+.eq-chip button { background: none; border: none; padding: 8px 12px; font-size: 14px; font-weight: 700; color: var(--text); cursor: pointer; }
+.eq-chip.active button { color: #fff; }
+.eq-chip .eq-x { padding: 8px 10px 8px 2px; opacity: .7; }
+.eq-add { display: flex; gap: 6px; }
+.eq-add input { flex: 1; min-width: 0; }
+.eq-add .action-btn { flex: 0 0 auto; padding: 10px 14px; }
 .eq-intro { font-size: 13px; color: var(--text-dim); margin: 6px 0 4px; line-height: 1.4; }
 .exercise-card input:disabled, .exercise-card select:disabled, .exercise-card textarea:disabled { opacity: .7; }
 </style>
@@ -138,6 +147,7 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 <div class="header-user">Athlete: <span id="headerAthleteName">&mdash;</span></div>
 </div>
 <div class="header-right">
+<button id="equipHeaderBtn" class="icon-btn" title="Bar and plate helper">&#127947;</button>
 <button id="msgDrawerBtn" class="icon-btn" title="Messages">&#9993;</button>
 <button id="logoutBtn" class="icon-btn" title="Exit">&#9211;</button>
 </div>
@@ -198,8 +208,10 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 <p class="eq-intro">Tell the app which bars and plates you have. For each lift it shows the closest weight you can load and exactly how to load it. If your bar changes, tap a different bar on the lift card.</p>
 <label class="eq-check"><input type="checkbox" id="equipOn" /> Show the helper on my lift cards</label>
 <div class="eq-field"><label for="equipUnits">Units</label><select id="equipUnits"><option value="lb">Pounds (lb)</option><option value="kg">Kilograms (kg)</option></select></div>
-<div class="eq-field"><label for="equipBars">My bars (weights; the first is my default)</label><input id="equipBars" type="text" inputmode="decimal" placeholder="e.g. 45, 33" /></div>
-<div class="eq-field"><label for="equipPlates">Plates I have (sizes, per side)</label><input id="equipPlates" type="text" inputmode="decimal" placeholder="" /></div>
+<div class="eq-field"><label>My bars (tap a bar to make it the default)</label><div id="equipBarChips" class="eq-chips"></div>
+<div class="eq-add"><input id="equipBarInput" type="number" inputmode="decimal" step="any" placeholder="Bar weight, e.g. 33" /><button type="button" id="equipBarAdd" class="action-btn">Add bar</button></div></div>
+<div class="eq-field"><label>Plates I have (tap to turn on or off)</label><div id="equipPlateChips" class="eq-chips"></div>
+<div class="eq-add"><input id="equipPlateInput" type="number" inputmode="decimal" step="any" placeholder="Another plate size, e.g. 1.25" /><button type="button" id="equipPlateAdd" class="action-btn">Add plate</button></div></div>
 <label class="eq-check"><input type="checkbox" id="equipSave" checked /> Save as my default (otherwise just for this visit)</label>
 <div style="display:flex;gap:8px;"><button id="equipCancelBtn" class="action-btn">Cancel</button><button id="equipSaveBtn" class="action-btn primary">Apply</button></div>
 </div>
@@ -252,10 +264,15 @@ function initListeners() {
   document.getElementById("timerMinusBtn").addEventListener("click", function () { adjustRestTimerValue(-30); });
   document.getElementById("timerPlusBtn").addEventListener("click", function () { adjustRestTimerValue(30); });
   document.getElementById("equipOpenBtn").addEventListener("click", openEquipModal);
+  document.getElementById("equipHeaderBtn").addEventListener("click", openEquipModal);
+  document.getElementById("equipBarAdd").addEventListener("click", addModalBar);
+  document.getElementById("equipPlateAdd").addEventListener("click", addModalPlate);
+  document.getElementById("equipBarInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addModalBar(); } });
+  document.getElementById("equipPlateInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addModalPlate(); } });
   document.getElementById("equipCloseBtn").addEventListener("click", closeEquipModal);
   document.getElementById("equipCancelBtn").addEventListener("click", closeEquipModal);
   document.getElementById("equipSaveBtn").addEventListener("click", applyEquipModal);
-  document.getElementById("equipUnits").addEventListener("change", function () { fillPlatePlaceholder(); });
+  document.getElementById("equipUnits").addEventListener("change", onEquipUnitsChange);
   buildCheckinScales();
 }
 
@@ -438,28 +455,68 @@ function refreshHelper(idx) {
   oi.addEventListener("change", function () { var v = parseFloat(oi.value); if (v > 0 && v < 200) { setBarChoice(ex, v); refreshHelper(idx); } });
 }
 function refreshAllHelpers() { loadedExercises.forEach(function (ex, i) { refreshHelper(i); }); }
-function fillPlatePlaceholder() {
-  var u = document.getElementById("equipUnits").value === "kg" ? "kg" : "lb";
-  document.getElementById("equipPlates").placeholder = "blank = standard: " + DEFAULT_PLATES[u].join(", ");
+var modalBars = [], modalPlates = [];
+function sameList(a, b) { return a.length === b.length && a.every(function (v, i) { return v === b[i]; }); }
+function modalUnits() { return document.getElementById("equipUnits").value === "kg" ? "kg" : "lb"; }
+function sortedDesc(a) { return a.slice().sort(function (x, y) { return y - x; }); }
+function renderEquipChips() {
+  var bc = document.getElementById("equipBarChips"), pc = document.getElementById("equipPlateChips");
+  bc.innerHTML = ""; pc.innerHTML = "";
+  if (!modalBars.length) bc.innerHTML = "<span class='helper-sub'>No bars yet. Type a bar weight below and tap Add bar.</span>";
+  modalBars.forEach(function (b, i) {
+    var c = document.createElement("span"); c.className = "eq-chip" + (i === 0 ? " active" : "");
+    var m = document.createElement("button"); m.type = "button"; m.textContent = (i === 0 ? "★ " : "") + fmtN(b);
+    m.addEventListener("click", function () { modalBars.splice(i, 1); modalBars.unshift(b); renderEquipChips(); });
+    var x = document.createElement("button"); x.type = "button"; x.className = "eq-x"; x.textContent = "×"; x.setAttribute("aria-label", "Remove bar " + fmtN(b));
+    x.addEventListener("click", function () { modalBars.splice(i, 1); renderEquipChips(); });
+    c.appendChild(m); c.appendChild(x); bc.appendChild(c);
+  });
+  var all = sortedDesc(DEFAULT_PLATES[modalUnits()].concat(modalPlates.filter(function (p) { return DEFAULT_PLATES[modalUnits()].indexOf(p) === -1; })));
+  all.forEach(function (p) {
+    var on = modalPlates.indexOf(p) !== -1;
+    var c = document.createElement("span"); c.className = "eq-chip" + (on ? " active" : "");
+    var m = document.createElement("button"); m.type = "button"; m.textContent = fmtN(p);
+    m.addEventListener("click", function () { var i = modalPlates.indexOf(p); if (i === -1) modalPlates.push(p); else modalPlates.splice(i, 1); renderEquipChips(); });
+    c.appendChild(m); pc.appendChild(c);
+  });
+}
+function readPositive(id) {
+  var el = document.getElementById(id), v = parseFloat(el.value);
+  el.value = "";
+  return (v > 0 && v <= 200) ? Math.round(v * 100) / 100 : null;
+}
+function addModalBar() {
+  var v = readPositive("equipBarInput");
+  if (v === null) { displaySystemNotice("Type the bar weight as a number.", true); return; }
+  if (modalBars.indexOf(v) === -1 && modalBars.length < 8) modalBars.push(v);
+  renderEquipChips();
+}
+function addModalPlate() {
+  var v = readPositive("equipPlateInput");
+  if (v === null) { displaySystemNotice("Type the plate size as a number.", true); return; }
+  if (modalPlates.indexOf(v) === -1 && modalPlates.length < 12) modalPlates.push(v);
+  renderEquipChips();
+}
+function onEquipUnitsChange() {
+  var u = modalUnits(), other = u === "kg" ? "lb" : "kg";
+  if (!modalPlates.length || sameList(sortedDesc(modalPlates), DEFAULT_PLATES[other])) modalPlates = DEFAULT_PLATES[u].slice();
+  renderEquipChips();
 }
 function openEquipModal() {
-  document.getElementById("equipOn").checked = equip.helperOn;
+  document.getElementById("equipOn").checked = equip.helperOn || !equip.bars.length;
   document.getElementById("equipUnits").value = equip.units;
-  document.getElementById("equipBars").value = equip.bars.map(fmtN).join(", ");
-  document.getElementById("equipPlates").value = equip.plates.map(fmtN).join(", ");
+  modalBars = equip.bars.slice();
+  modalPlates = equip.plates.length ? equip.plates.slice() : DEFAULT_PLATES[equip.units].slice();
   document.getElementById("equipSave").checked = true;
-  fillPlatePlaceholder();
+  renderEquipChips();
   document.getElementById("equipModal").classList.remove("hidden");
 }
 function closeEquipModal() { document.getElementById("equipModal").classList.add("hidden"); }
-function parseNums(txt, max) {
-  var out = [];
-  String(txt || "").split(/[,\s;]+/).forEach(function (t) { var n = parseFloat(t); if (n > 0 && n <= 200 && out.indexOf(n) === -1 && out.length < max) out.push(Math.round(n * 100) / 100); });
-  return out;
-}
 function applyEquipModal() {
-  var bars = parseNums(document.getElementById("equipBars").value, 8), plates = parseNums(document.getElementById("equipPlates").value, 12);
-  var next = { helperOn: document.getElementById("equipOn").checked, units: document.getElementById("equipUnits").value === "kg" ? "kg" : "lb", bars: bars, plates: plates, lastBar: bars.length ? bars[0] : null };
+  var pendBar = readPositive("equipBarInput"); if (pendBar !== null && modalBars.indexOf(pendBar) === -1 && modalBars.length < 8) modalBars.push(pendBar);
+  var pendPlate = readPositive("equipPlateInput"); if (pendPlate !== null && modalPlates.indexOf(pendPlate) === -1 && modalPlates.length < 12) modalPlates.push(pendPlate);
+  var bars = modalBars.slice(), plates = sortedDesc(modalPlates);
+  var next = { helperOn: document.getElementById("equipOn").checked, units: modalUnits(), bars: bars, plates: plates, lastBar: bars.length ? bars[0] : null };
   equip = next;
   updateHelperLink();
   refreshAllHelpers();
