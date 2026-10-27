@@ -701,7 +701,7 @@ function buildCard(ex, idx) {
     for (var s = 1; s <= ex.sets; s++) {
       rows += '<div class="set-row" id="row_' + idx + '_' + s + '"><div class="set-label">S' + s + '</div>' +
         '<div><input type="text" placeholder="' + (ex.needsStart ? "load used" : (needLoad ? "load" : "load (opt)")) + '" id="load_' + idx + '_' + s + '" data-idx="' + idx + '" value="' + (ex.isNumeric ? esc(ex.preAllocatedLoad) : "") + '" /></div>' +
-        '<div><input type="number" inputmode="numeric" placeholder="' + (ex.kind === "reps" ? "reps/sec" : "reps") + '" id="reps_' + idx + '_' + s + '" data-idx="' + idx + '" /></div>' +
+        '<div><input type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="' + (ex.kind === "reps" ? "reps/sec" : "reps") + '" id="reps_' + idx + '_' + s + '" data-idx="' + idx + '" /></div>' +
         '<div><select id="grade_' + idx + '_' + s + '" data-idx="' + idx + '" data-set="' + s + '">' + gradeOptions() + '</select></div></div>';
     }
     if (hasBarMath(ex)) inner += '<div class="helper hidden" id="helper_' + idx + '"></div>';
@@ -765,16 +765,23 @@ function parseTimeToMinutes(txt) {
 }
 
 function commitPerformanceRowData(exIdx) {
-  var ex = loadedExercises[exIdx], setsData = [], timeMinutes, rawSets = [], timeRaw = '';
+  var ex = loadedExercises[exIdx], setsData = [], timeMinutes, rawSets = [], timeRaw = '', highOk = {};
   var summaryText = document.getElementById("notes_" + exIdx).value.trim();
   if (ex.kind === "time") {
     timeRaw = document.getElementById("time_" + exIdx).value;
     timeMinutes = parseTimeToMinutes(timeRaw);
-    if (isNaN(timeMinutes)) { displaySystemNotice("Enter your finish time as mm:ss.", true); return; }
+    if (isNaN(timeMinutes) || timeMinutes <= 0 || timeMinutes > 1000) { displaySystemNotice("Enter your finish time as mm:ss (more than zero).", true); return; }
   } else {
     for (var s = 1; s <= ex.sets; s++) {
       var l = document.getElementById("load_" + exIdx + "_" + s).value.trim(), r = document.getElementById("reps_" + exIdx + "_" + s).value, g = document.getElementById("grade_" + exIdx + "_" + s).value;
       if (!r || !g || (needsLoadEntry(ex) && !l)) { displaySystemNotice("Complete every set (reps and grade" + (needsLoadEntry(ex) ? ", and load" : "") + ").", true); return; }
+      if (!/^\d{1,3}$/.test(String(r).trim())) { displaySystemNotice("Set " + s + ": reps must be a whole number from 0 to 999 (no negatives or decimals).", true); return; }
+      if (l !== "" && !isNaN(l) && (parseFloat(l) < 0 || parseFloat(l) > 5000)) { displaySystemNotice("Set " + s + ": load must be 0 or more (and no more than 5000). No negative numbers.", true); return; }
+      if (l !== "" && isNaN(l) && l.length > 20) { displaySystemNotice("Set " + s + ": load is too long. Enter a number.", true); return; }
+      if (ex.maxReps > 0 && parseInt(r, 10) > ex.maxReps * 1.5 && !highOk[s]) {
+        if (!window.confirm("Set " + s + ": " + r + " looks high (your target is up to " + ex.maxReps + "). That looks high, is it correct?")) return;
+        highOk[s] = true;
+      }
       var entry = { set: s, load: (l === "" ? "" : (isNaN(l) ? l : parseFloat(l))), reps: parseInt(r, 10), grade: g };
       if (typeof entry.load === "number" && helperActive() && equip.units !== sheetUnits) {
         entry.enteredLoad = entry.load; entry.enteredUnit = equip.units;
