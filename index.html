@@ -765,10 +765,11 @@ function parseTimeToMinutes(txt) {
 }
 
 function commitPerformanceRowData(exIdx) {
-  var ex = loadedExercises[exIdx], setsData = [], timeMinutes;
+  var ex = loadedExercises[exIdx], setsData = [], timeMinutes, rawSets = [], timeRaw = '';
   var summaryText = document.getElementById("notes_" + exIdx).value.trim();
   if (ex.kind === "time") {
-    timeMinutes = parseTimeToMinutes(document.getElementById("time_" + exIdx).value);
+    timeRaw = document.getElementById("time_" + exIdx).value;
+    timeMinutes = parseTimeToMinutes(timeRaw);
     if (isNaN(timeMinutes)) { displaySystemNotice("Enter your finish time as mm:ss.", true); return; }
   } else {
     for (var s = 1; s <= ex.sets; s++) {
@@ -779,13 +780,14 @@ function commitPerformanceRowData(exIdx) {
         entry.enteredLoad = entry.load; entry.enteredUnit = equip.units;
         entry.load = Math.round(convertUnits(entry.load, equip.units, sheetUnits) * 10) / 10;   // stored in the workbook's units
       }
-      setsData.push(entry);
+      setsData.push(entry); rawSets.push({ l: l, r: r, g: g });
     }
   }
   var exPayload = { name: ex.exerciseName, sets: setsData };
   if (ex.kind === "time") exPayload.timeMinutes = timeMinutes;
   var payload = { summary_notes: summaryText, exercises: exPayload };
   var btn = document.getElementById("submit_" + exIdx);
+  ex._pending = { raw: rawSets, timeRaw: timeRaw, notes: summaryText };
   btn.disabled = true; btn.textContent = "Logging...";
   sendSubmission(exIdx, ex, payload, setsData, timeMinutes, btn, false);
 }
@@ -796,28 +798,66 @@ function sendSubmission(exIdx, ex, payload, setsData, timeMinutes, btn, confirme
   var req = { action: "submitWorkout", athleteEmail: userSession.email, targetTrack: ex.targetTrack, category: ex.category, exerciseName: ex.exerciseName,
               performancePayloadJSON: JSON.stringify(payload), performedAt: pd.toISOString() };
   if (confirmed) req.confirmRecovery = "1";
+  if (ex._editRec && ex._editRec.entryId) req.replaceEntryId = ex._editRec.entryId;
   jsonpRequest(req, function (res) {
     if (res && res.needsConfirm) {
       if (window.confirm(res.confirmMessage || "This is close to your last session of this exercise. Log it anyway?")) { sendSubmission(exIdx, ex, payload, setsData, timeMinutes, btn, true); return; }
-      btn.disabled = false; btn.textContent = ex.optional ? "Log Optional Work" : "Submit Session Log";
+      btn.disabled = false; btn.textContent = btnLabel(ex);
       return;
     }
     if (res && res.success) {
-      localHistoryArray.unshift({ date: dateStr, name: ex.exerciseName, sets: setsData, time: timeMinutes });
+      var rec = { date: dateStr, name: ex.exerciseName, track: ex.targetTrack, sets: setsData, time: timeMinutes, entryId: (res.entryId || ""),
+                  raw: (ex._pending && ex._pending.raw) || [], timeRaw: (ex._pending && ex._pending.timeRaw) || "", notes: (ex._pending && ex._pending.notes) || "" };
+      var wasEdit = !!ex._editRec;
+      if (wasEdit) { for (var k in rec) { if (rec.hasOwnProperty(k)) ex._editRec[k] = rec[k]; } ex._editRec = null; var cb = document.getElementById("cancelEdit_" + exIdx); if (cb) cb.parentNode.removeChild(cb); }
+      else localHistoryArray.unshift(rec);
       renderLocalHistoryLedgerPane();
       btn.textContent = "Saved ✓"; btn.style.background = "var(--border-strong)"; btn.style.color = "var(--text)";
       card_lock(exIdx);
       showResult(exIdx, res);
-      if (!ex.optional) completedTokensList.push({ track: ex.category, exercise: ex.exerciseName, date: dateStr, session: ex.targetTrack, inWeek: pd.getTime() >= mondayStart(new Date()).getTime() });
+      if (!ex.optional && !wasEdit) completedTokensList.push({ track: ex.category, exercise: ex.exerciseName, date: dateStr, session: ex.targetTrack, inWeek: pd.getTime() >= mondayStart(new Date()).getTime() });
       renderWeeklyTokenBudgetLedger();
       evaluateSafetyGuardrails();
       if (res.needsCheckin && res.flagId) openCheckin(res.flagId);
       displaySystemNotice("Session log locked successfully.");
     } else {
       displaySystemNotice((res && res.error) || "Submission failed.", true);
-      btn.disabled = false; btn.textContent = ex.optional ? "Log Optional Work" : "Submit Session Log";
+      btn.disabled = false; btn.textContent = btnLabel(ex);
+      if (ex._editRec && res && /no longer be edited|24 hours|newer entry/.test(res.error || "")) cancelEdit(exIdx);
     }
   });
+}
+function btnLabel(ex) { return ex._editRec ? "Save Changes" : (ex.optional ? "Log Optional Work" : "Submit Session Log"); }
+
+// Reopen a saved exercise for correction (this visit, within 24 hours; the Engine enforces the rules).
+function startEdit(recIdx) {
+  var rec = localHistoryArray[recIdx]; if (!rec || !rec.entryId) { displaySystemNotice("This entry cannot be edited from here. Message your coach.", true); return; }
+  var i = -1;
+  for (var n = 0; n < loadedExercises.length; n++) { if (loadedExercises[n].exerciseName === rec.name && loadedExercises[n].targetTrack === rec.track) { i = n; break; } }
+  if (i === -1) { displaySystemNotice("Switch back to the " + rec.track + " session to edit this one.", true); return; }
+  var ex = loadedExercises[i];
+  switchMainNavigationPane("workout");
+  var card = document.getElementById("card_ex_" + i); if (!card) return;
+  card.querySelectorAll("input, select, textarea").forEach(function (el) { el.disabled = false; });
+  if (ex.kind === "time") { var t = document.getElementById("time_" + i); if (t) t.value = rec.timeRaw || ""; }
+  else { for (var s = 1; s <= ex.sets; s++) { var r = rec.raw[s - 1]; if (!r) continue; document.getElementById("load_" + i + "_" + s).value = r.l; document.getElementById("reps_" + i + "_" + s).value = r.r; document.getElementById("grade_" + i + "_" + s).value = r.g; } }
+  var nt = document.getElementById("notes_" + i); if (nt) nt.value = rec.notes || "";
+  ex._editRec = rec;
+  var btn = document.getElementById("submit_" + i); btn.disabled = false; btn.textContent = "Save Changes"; btn.style.background = ""; btn.style.color = "";
+  if (!document.getElementById("cancelEdit_" + i)) {
+    var c = document.createElement("button"); c.className = "action-btn"; c.id = "cancelEdit_" + i; c.textContent = "Cancel edit";
+    c.addEventListener("click", function () { cancelEdit(i); }); btn.parentNode.insertBefore(c, btn);
+  }
+  var res = document.getElementById("result_" + i); if (res) res.innerHTML = '<div class="result-line">Editing your saved entry. Change what you need and tap Save Changes.</div>';
+  try { if (ex.kind !== "time") evaluateAutoRegShading(i); } catch (e) {}
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function cancelEdit(i) {
+  var ex = loadedExercises[i]; if (!ex) return;
+  ex._editRec = null; card_lock(i);
+  var btn = document.getElementById("submit_" + i); btn.disabled = true; btn.textContent = "Saved ✓"; btn.style.background = "var(--border-strong)"; btn.style.color = "var(--text)";
+  var cb = document.getElementById("cancelEdit_" + i); if (cb) cb.parentNode.removeChild(cb);
+  var res = document.getElementById("result_" + i); if (res) res.innerHTML = "";
 }
 function card_lock(idx) { document.querySelectorAll("#card_ex_" + idx + " input, #card_ex_" + idx + " select, #card_ex_" + idx + " textarea").forEach(function (el) { el.disabled = true; }); }
 
@@ -873,10 +913,11 @@ function renderLocalHistoryLedgerPane() {
   var container = document.getElementById("historyLedgerList");
   if (!container) return;
   if (localHistoryArray.length === 0) { container.innerHTML = "<div>No logged sessions yet this visit.</div>"; return; }
-  container.innerHTML = localHistoryArray.map(function (h) {
+  container.innerHTML = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">Need to fix something you just logged? Tap Edit (available for 24 hours after saving).</div>' + localHistoryArray.map(function (h, hi) {
     var metrics = h.time != null && !isNaN(h.time) ? (h.time + " min") : h.sets.map(function (s) { return (s.load !== "" ? s.load + "x" : "") + s.reps + s.grade; }).join(" ");
-    return "<div style='background:#f8fafc;padding:12px;border:1px solid var(--border);border-radius:var(--radius);'><strong>" + esc(h.date) + " - " + esc(h.name) + ":</strong> <span style='color:var(--accent);font-weight:bold;margin-left:8px;'>" + esc(metrics) + "</span></div>";
+    return "<div style='background:#f8fafc;padding:12px;border:1px solid var(--border);border-radius:var(--radius);'><strong>" + esc(h.date) + " - " + esc(h.name) + ":</strong> <span style='color:var(--accent);font-weight:bold;margin-left:8px;'>" + esc(metrics) + "</span>" + (h.entryId ? ' <button class="action-btn" data-edit="' + hi + '" style="margin-left:8px;">Edit</button>' : "") + "</div>";
   }).join("");
+  container.querySelectorAll("[data-edit]").forEach(function (b) { b.addEventListener("click", function () { startEdit(parseInt(b.getAttribute("data-edit"), 10)); }); });
 }
 function openCoachChatDrawer() { document.getElementById("chatModal").classList.remove("hidden"); syncMessageHistoryFeed(); }
 function syncMessageHistoryFeed() {
